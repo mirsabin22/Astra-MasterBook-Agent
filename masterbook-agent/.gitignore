@@ -21,3 +21,4 @@ seed/
 .vscode/
 .idea/
 .DS_Store
+.mb_state.json
