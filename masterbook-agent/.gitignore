@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Database lokal 
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Data seed 
+seed/
+
+*.log
+.vscode/
+.idea/
+.DS_Store
