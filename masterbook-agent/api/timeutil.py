@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 WITA = ZoneInfo("Asia/Makassar")
@@ -13,4 +13,4 @@ def today_wita():
 
 
 def now_ts():
-    return now_wita().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
