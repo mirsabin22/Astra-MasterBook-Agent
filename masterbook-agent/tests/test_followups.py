@@ -1,4 +1,10 @@
+import sqlite3
+from datetime import timedelta
+
 from api.auth import mint_token
+from api import config
+from api.timeutil import now_wita
+
 
 
 def hdr(actor="lenny", sales="Lenny", role="sales"):
@@ -66,3 +72,43 @@ def test_closed_status_rejects_date(client):
 def test_sales_sees_only_own_scope(client):
     ids = [i["id"] for i in client.get("/api/outlets/search?q=Outlet", headers=hdr()).json()["items"]]
     assert ids == ["O1"]
+
+def _sql(q):
+    c = sqlite3.connect(config.DB_PATH)
+    c.execute(q)
+    c.commit()
+    c.close()
+
+
+def test_province_is_exact(client):
+    _sql("UPDATE outlets SET province='Riau' WHERE id='O1'")
+    _sql("INSERT INTO outlets (id,name,main_dealer_code,dealer_code,city,province) "
+         "VALUES ('O3','Outlet Tiga','MD1','D3','Batam','Kepulauan Riau')")
+    _sql("INSERT INTO outlet_scope (outlet_id,main_dealer_code,sales_owner) VALUES ('O3','MD1','Lenny')")
+    r = client.get("/api/outlets/query?province=Riau", headers=hdr()).json()
+    assert [i["id"] for i in r["items"]] == ["O1"]
+
+
+def test_status_filter_includes_won(client):
+    client.post("/api/followups", json=draft(status="WON", next_followup=None, expected_version=0), headers=hdr())
+    assert client.get("/api/outlets/query?status=WON", headers=hdr()).json()["total"] == 1
+    assert client.get("/api/outlets/query?status=BELUM_FU", headers=hdr()).json()["total"] == 0
+
+
+def test_window_next_week(client):
+    d = now_wita().date()
+    monday_next = d - timedelta(days=d.weekday()) + timedelta(days=7)
+    client.post("/api/followups", json=draft(next_followup=monday_next.isoformat(), expected_version=0), headers=hdr())
+    nxt = client.get("/api/outlets/query?window=next_week", headers=hdr()).json()
+    assert [i["id"] for i in nxt["items"]] == ["O1"]
+    assert client.get("/api/outlets/query?window=this_week", headers=hdr()).json()["total"] == 0
+
+
+def test_contact_filter_and_endpoint(client):
+    _sql("UPDATE outlets SET whatsapp='081234567890' WHERE id='O1'")
+    r = client.get("/api/outlets/query?contact=wa", headers=hdr()).json()
+    assert [i["id"] for i in r["items"]] == ["O1"] and r["items"][0]["has_wa"] is True
+    assert "whatsapp" not in r["items"][0]
+    assert client.get("/api/outlets/query?contact=none", headers=hdr()).json()["total"] == 0
+    assert client.get("/api/outlets/O1/contact", headers=hdr()).json()["whatsapp"] == "081234567890"
+    assert client.get("/api/outlets/O2/contact", headers=hdr()).status_code == 404
